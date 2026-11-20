@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OVERWATCH // Tactical Vision Intelligence Lab - Judges Pitch Deck</title>
+  <style>
+    :root {
+      --bg-color: #070b14;
+      --card-bg: rgba(13, 23, 42, 0.85);
+      --border-color: rgba(0, 240, 255, 0.25);
+      --accent-cyan: #00f0ff;
+      --accent-amber: #ffb86c;
+      --accent-red: #ff5555;
+      --accent-green: #50fa7b;
+      --text-main: #e2e8f0;
+      --text-muted: #94a3b8;
+      --font-mono: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+      display: flex;
+      flex-direction: column;
+      user-select: none;
+    }
+
+    /* Scanline & Tactical Grid Effect */
+    body::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+      background-size: 100% 4px, 6px 100%;
+      pointer-events: none;
+      z-index: 100;
+      opacity: 0.6;
+    }
+
+    /* Top HUD Bar */
+    header {
+      height: 54px;
+      background: rgba(10, 15, 29, 0.95);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      z-index: 10;
+    }
+
+    .hud-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--accent-cyan);
+      font-weight: 700;
+      letter-spacing: 1.5px;
+    }
+
+    .badge-live {
+      background: rgba(80, 250, 123, 0.15);
+      color: var(--accent-green);
+      border: 1px solid var(--accent-green);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      animation: pulse 2s infinite;
+    }
+
+    .badge-rubric {
+      background: rgba(0, 240, 255, 0.12);
+      color: var(--accent-cyan);
+      border: 1px solid var(--accent-cyan);
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 0.6; }
+      50% { opacity: 1; }
+      100% { opacity: 0.6; }
+    }
+
+    /* Main Slide Container */
+    main {
+      flex: 1;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 48px;
+    }
+
+    .slide {
+      position: absolute;
+      top: 24px;
+      bottom: 24px;
+      left: 48px;
+      right: 48px;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6), 0 0 20px rgba(0, 240, 255, 0.1);
+      display: none;
+      flex-direction: column;
+      padding: 36px 48px;
+      backdrop-filter: blur(12px);
+      overflow-y: auto;
+    }
+
+    .slide.active {
+      display: flex;
+      animation: fadeIn 0.3s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.99); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .slide-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 24px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 16px;
+    }
+
+    .slide-title-area h2 {
+      font-size: 28px;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      letter-spacing: -0.5px;
+    }
+
+    .slide-title-area .subtitle {
+      color: var(--text-muted);
+      font-size: 14px;
+      margin-top: 4px;
+      font-family: var(--font-mono);
+    }
+
+    .slide-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Grid Layouts */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      align-items: stretch;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 20px;
+    }
+
+    .card {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .card.highlight {
+      border-color: rgba(0, 240, 255, 0.4);
+      background: rgba(0, 240, 255, 0.04);
+    }
+
+    .card.alert {
+      border-color: rgba(255, 85, 85, 0.4);
+      background: rgba(255, 85, 85, 0.04);
+    }
+
+    .card h3 {
+      font-size: 16px;
+      color: var(--accent-cyan);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+    }
+
+    .card.alert h3 {
+      color: var(--accent-red);
+    }
+
+    p, li {
+      font-size: 14.5px;
+      line-height: 1.6;
+      color: #cbd5e1;
+    }
+
+    ul {
+      padding-left: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    /* Code & Terminal Blocks */
+    .terminal-box {
+      background: #020617;
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      border-radius: 6px;
+      padding: 16px;
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      color: #38bdf8;
+      overflow-x: auto;
+      line-height: 1.5;
+    }
+
+    .terminal-box .hl-param { color: var(--accent-amber); font-weight: bold; }
+    .terminal-box .hl-chain { color: var(--accent-green); font-weight: bold; }
+    .terminal-box .hl-overlay { color: #f472b6; font-weight: bold; }
+
+    /* Visual Comparison Cards */
+    .image-row {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      justify-content: center;
+      margin-top: 8px;
+    }
+
+    .image-card {
+      background: #020617;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      padding: 10px;
+      text-align: center;
+      flex: 1;
+    }
+
+    .image-card img {
+      max-width: 100%;
+      max-height: 140px;
+      object-fit: contain;
+      border-radius: 4px;
+      border: 1px solid rgba(0, 240, 255, 0.2);
+    }
+
+    .image-card .caption {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    /* Bottom Navigation Bar */
+    footer {
+      height: 60px;
+      background: rgba(10, 15, 29, 0.95);
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      z-index: 10;
+    }
+
+    .nav-controls {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    button.btn-nav {
+      background: rgba(0, 240, 255, 0.1);
+      border: 1px solid var(--accent-cyan);
+      color: var(--accent-cyan);
+      padding: 8px 16px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+
+    button.btn-nav:hover {
+      background: var(--accent-cyan);
+      color: #070b14;
+      box-shadow: 0 0 12px rgba(0, 240, 255, 0.5);
+    }
+
+    .slide-progress {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .speaker-notes-drawer {
+      display: none;
+      background: rgba(2, 6, 23, 0.95);
+      border-top: 2px solid var(--accent-amber);
+      padding: 14px 24px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--accent-amber);
+      position: absolute;
+      bottom: 60px;
+      left: 0;
+      right: 0;
+      z-index: 20;
+    }
+
+    .speaker-notes-drawer.open {
+      display: block;
+    }
+
+    /* Print / PDF Mode */
+    @media print {
+      body {
+        overflow: visible;
+        height: auto;
+      }
+      header, footer, .speaker-notes-drawer {
+        display: none !important;
+      }
+      .slide {
+        display: flex !important;
+        position: relative !important;
+        page-break-after: always;
+        top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
+        margin: 20px 0;
+        box-shadow: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Tactical HUD -->
+  <header>
+    <div class="hud-title">
+      <span>🛰️ OVERWATCH // TACTICAL LAB</span>
+      <span class="badge-live">SYSTEM: ONLINE</span>
+    </div>
+    <div id="rubric-badge" class="badge-rubric">
+      JUDGING CRITERION: PLATFORM DEPTH & ELEGANCE [25%]
+    </div>
+    <div style="font-family: var(--font-mono); font-size: 12px; color: var(--text-muted);">
+      [PRESS 'S' FOR SPEAKER NOTES • 'F' FOR FULLSCREEN]
+    </div>
+  </header>
+
+  <!-- Slide Canvas -->
+  <main>
+
+    <!-- SLIDE 1: Title & Vision -->
+    <div class="slide active" data-rubric="THEME ALIGNMENT & INNOVATION [15%]" data-notes="Judges, welcome to OVERWATCH. We brought the Hollywood spy-satellite vision console to life. But unlike science fiction, every feature is running live on Streamlit, backed by OpenCV heuristics and ImageKit's dynamic media transformation CDN.">
+      <div class="slide-header">
+        <div class="slide-title-area">
+          <h2>🛰️ OVERWATCH: Tactical Vision Intelligence Lab</h2>
+          <div class="subtitle">AI-POWERED SURVEILLANCE RECONNAISSANCE & FORENSIC MEDIA INTELLIGENCE</div>
+        </div>
+        <div class="badge-rubric">SLIDE 01 / 10</div>
+      </div>
+      <div class="slide-content">
+        <div class="grid-2">
+          <div class="card highlight">
+            <h3>🎯 The Hollywood Vision vs. Reality</h3>
+            <p><strong>The Sci-Fi Trope:</strong> In spy thrillers, analysts zoom into a blurred reflection, cleanly read an alphanumeric car plate from 500 meters, cross-reference the suspect against an international syndicate database, and deploy tactical assets in seconds.</p>
+            <p><strong>The Harsh Reality:</strong> Surveillance operators monitor 480p/720p streams, manually scrub hours of footage, squint at illegible license plates, and manually copy numbers into disconnected databases.</p>
+            <p><strong>OVERWATCH Bridges The Gap:</strong> Pairs OpenCV edge heuristics with ImageKit’s dynamic cloud transformation pipeline to deliver true sub-pixel forensic intelligence.</p>
+          </div>
+          <div class="card">
+            <h3>⚡ Core System Pillars</h3>
+            <ul>
+              <li><strong>Sub-Pixel Forensic Zoom:</strong> Leverages ImageKit <code>cm-extract:w-880</code> to magnify tiny license plates without lossy client-side blur.</li>
+              <li><strong>Zero-Hallucination ALPR:</strong> Precision plate isolation eliminating false detections on buildings, rooflines, and wheel spokes.</li>
+              <li><strong>Most Wanted Gangster Registry:</strong> Instant syndicate cross-reference with "places where they made a mess" crime history.</li>
+              <li><strong>Edge Layer Compositor:</strong> Renders tactical spy HUD targeting reticles directly on ImageKit's CDN edge without server GPU overhead.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="terminal-box">
+          <code>[STATUS: CLASSIFIED // LEVEL 5] REPOSITORY: github.com/AmanAsgola/OVERWATCH-Tactical-Vision-Intelligence-Lab • STREAMLIT LIVE: http://localhost:8501</code>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 2: The Real-World Crisis -->
+    <div class="slide" data-rubric="PROBLEM SIGNIFICANCE & REAL-WORLD UTILITY [20%]" data-notes="Security footage is useless 99% of the time. Vehicles take up only 15% of wide-angle frames, operators suffer severe fatigue after 20 minutes, and local NVRs are completely cut off from criminal databases. OVERWATCH automates detection, scores sharpness, and checks warrants instantly.">
+      <div class="slide-header">
+        <div class="slide-title-area">
+          <h2>🚨 The Real-World Crisis: Why Surveillance Fails</h2>
+          <div class="subtitle">THE 3 FATAL BOTTLENECKS OF CONTEMPORARY VIDEO SECURITY SYSTEMS</div>
+        </div>
+        <div class="badge-rubric">SLIDE 02 / 10</div>
+      </div>
+      <div class="slide-content">
+        <div class="grid-3">
+          <div class="card alert">
+            <h3>1. The Pixel Starvation Trap</h3>
+            <p>Commercial CCTV cameras use wide-angle lenses to cover whole intersections. A car passing 30 meters away occupies only 15% of the frame; its license plate is merely <strong>25–40 pixels wide</strong>.</p>
+            <p style="color: var(--accent-red); font-size: 13px;">❌ Standard zooming produces blurry mosaic artifacts that are unreadable in court.</p>
+          </div>
+          <div class="card alert">
+            <h3>2. The Operator Fatigue Wall</h3>
+            <p>Cognitive studies prove that after just <strong>20 minutes</strong> of monitoring surveillance monitors, human operators miss over <strong>95%</strong> of scene activity and anomalies.</p>
+            <p style="color: var(--accent-red); font-size: 13px;">❌ Critical escape vehicles pass unnoticed in real time.</p>
+          </div>
+          <div class="card alert">
+            <h3>3. Disconnected Registries</h3>
+            <p>Security video records silently onto isolated on-premise NVRs (Network Video Recorders), completely severed from law enforcement criminal databases.</p>
+            <p style="color: var(--accent-red); font-size: 13px;">❌ Guards have zero context if a passing sedan belongs to a wanted syndicate boss.</p>
+          </div>
+        </div>
+        <div class="card highlight">
+          <h3>🛡️ The OVERWATCH Automated Pipeline</h3>
+          <p>OVERWATCH ingests video streams at 0.25s–0.5s sampling rates, computes <strong>Laplacian variance sharpness scores</strong> to automatically pick the single highest-fidelity frame, isolates bumper plates, and performs instant database cross-checks before the car leaves the gate.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 3: CV Overhaul & False-Positive Traps -->
+    <div class="slide" data-rubric="ENGINEERING RIGOR & VISION ACCURACY [25%]" data-notes="Here is where we solved a massive technical hurdle. Standard edge cascades on our test footage detected warehouse roofs as cars, asphalt parking lines as plates, and car wheel rims as human faces! We fixed this with YCrCb skin-tone validation and HSV yellow/white plate masking.">
+      <div class="slide-header">
+        <div class="slide-title-area">
+          <h2>🔬 Computer Vision Overhaul: Eliminating False Positives</h2>
+          <div class="subtitle">SOLVING THE 'DETECTING EVERYTHING ELSE' PROBLEM ON REAL FOOTAGE</div>
+        </div>
+        <div class="badge-rubric">SLIDE 03 / 10</div>
+      </div>
+      <div class="slide-content">
+        <div class="grid-2">
+          <div class="card alert">
+            <h3>❌ The Naive Cascade Trap (Before)</h3>
+            <ul>
+              <li><strong>Building Roofs as "Vehicles":</strong> High-contrast warehouse beams triggered generic contour bounding boxes.</li>
+              <li><strong>Parking Lines & Windows as "Plates":</strong> Blind fallback slices chopped yellow asphalt stripes and building louvers.</li>
+              <li><strong>Alloy Wheels as "Face #1":</strong> High-symmetry wheel spokes matched Haar facial cascade features!</li>
+            </ul>
+          </div>
+          <div class="card highlight">
+            <h3> The OVERWATCH Deterministic Engine (After)</h3>
+            <ul>
+              <li><strong>YCrCb Skin Tone Verification:</strong> Rejects wheel rims by requiring human chrominance: <code>Cr ∈ [133, 173], Cb ∈ [77, 127]</code>. Zero fake faces on cars!</li>
+              <li><strong>HSV Yellow & White Plate Masks:</strong> Specialized yellow filter (<code>H: 16-42, S >= 65, V >= 65</code>) isolates reflective plates from asphalt.</li>
+              <li><strong>Plate-Anchored Vehicle Bounds:</strong> Bounding boxes anchor directly to verified license plates, ignoring distant background warehouses.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="image-row">
+          <div class="image-card">
+            <img src="./assets/real_subaru_car_crop.png" alt="Subaru Vehicle Crop">
+            <div class="caption">1. Vehicle Isolated via Plate Anchor (334, 258, 247, 126)</div>
+          </div>
+          <div class="image-card">
+            <img src="./assets/real_subaru_plate_crop.png" alt="Subaru Plate Crop">
+            <div class="caption">2. Yellow Plate Isolated (443, 351, 26, 18)</div>
+          </div>
+          <div class="image-card">
+            <img src="./assets/real_subaru_enhanced_plate.png" alt="Enhanced Plate">
+            <div class="caption">3. CLAHE + Otsu Binarization (Pure OCR Ready)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 4: Precision ALPR Engine -->
+    <div class="slide" data-rubric="ENGINEERING RIGOR & ALPR PIPELINE [25%]" data-notes="Our ALPR engine uses a dual pathway: a strict Haar cascade for close plates, and a morphological Blackhat transform for far away bumpers. Candidates pass through CLAHE local contrast equalization and Otsu binarization to yield crisp, court-admissible characters.">
+      <div class="slide-header">
+        <div class="slide-title-area">
+          <h2>⚙️ Dual-Pathway ALPR & Character Enhancement</h2>
+          <div class="subtitle">MAXIMIZING LEGIBILITY ACROSS SHADOWS, GLARE & LOW RESOLUTIONS</div>
+        </div>
+        <div class="badge-rubric">SLIDE 04 / 10</div>
+      </div>
+      <div class="slide-content">
+        <div class="grid-2">
+          <div class="card">
+            <h3>🔄 Dual-Pathway Extraction Architecture</h3>
+            <p><strong>Pathway A (Global Haar Scan):</strong> Evaluates the full frame using calibrated multi-scale Russian/European plate cascades (<code>minNeighbors=4, scaleFactor=1.08</code>).</p>
+            <p><strong>Pathway B (Morphological Blackhat):</strong> Slices vehicle bumper regions and applies a 13×5 rectangular structuring element to highlight dark embossed characters on bright backgrounds.</p>
+            <p><strong>Geometric Filtering:</strong> Enforces aspect ratios between 1.8 and 5.5, discarding gravel, headlamps, and grille textures.</p>
+          </div>
+          <div class="card highlight">
+            <h3>🔬 Forensic Contrast Equalization</h3>
+            <ul>
+              <li><strong>CLAHE (Contrast Limited Adaptive Histogram Equalization):</strong> Prevents noise amplification by clipping contrast at 2.5 across an 8×8 grid, cutting through sunlight glare and night shadows.</li>
+              <li><strong>Otsu Automatic Binarization:</strong> Calculates the optimal global threshold to separate foreground character pixels from plate background with zero manual tuning.</li>
+              <li><strong>Manual ALPR Pinpoint Tool:</strong> Built right into Tab 2 so operators can manually fine-tune coordinates on extreme camera angles.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="terminal-box">
+          <code>[ALPR PIPELINE] RAW FRAME ➔ GRAYSCALE ➔ CLAHE (clip=2.5) ➔ BLACKHAT (13x5) ➔ OTSU THRESHOLD ➔ ASPECT RATIO VALIDATION ➔ FORENSIC SEED (SHA-256)</code>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 5: ImageKit Platform Integration -->
+    <div class="slide" data-rubric="IMAGEKIT PLATFORM DEPTH & ELEGANCE [25%]" data-notes="Here is where ImageKit shines. Instead of rendering expensive overlays on our local server, we construct chained dynamic URLs. cm-extract pulls sub-pixel coordinates without loss, fo-car tracks vehicles, and layered transformations stamp HUD crosshairs right on ImageKit CDN edge.">
+      <div class="slide-header">
+        <div class="slide-title-area">
+          <h2>🌐 ImageKit Dynamic CDN Architecture: Forensics at the Edge</h2>
+          <div class="subtitle">OFFLOADING SUB-PIXEL CROPPING, SMART FOCUS & HUD RENDERING TO THE GLOBAL CDN</div>
+        </div>
+        <div class="badge-rubric">SLIDE 05 / 10</div>
+      </div>
+      <div class="slide-content">
+        <div class="grid-2">
+          <div class="card highlight">
+            <h3>1. Sub-Pixel Forensic Zoom (<code>cm-extract</code>)</h3>
+            <p>Extracts exact pixel-level coordinates without client-side scaling distortion, chained directly with high-resolution enlargement:</p>
+            <div class="terminal-box">
+              <code>?tr=<span class="hl-param">w-240,h-160,cm-extract,x-443,y-351</span>:<span class="hl-chain">w-880,q-95</span></code>
+            </div>
+            <p style="font-size: 13px; color: var(--accent-cyan);">Result: Crystal clear bumper plate inspection directly from CDN edge.</p>
+          </div>
+          <div class="card highlight">
+            <h3>2. Layered HUD Compositor (<code>l-image</code>, <code>l-text</code>)</h3>
+            <p>Composes tactical HUD overlays, classified stamps, and target reticles dynamically on ImageKit edge nodes:</p>
+            <div class="terminal-box">
+              <code>?tr=<span class="hl-overlay">l-image,i-hud_reticle,w-320,lx-120,ly-150:l-text,i-TARGET_LOCKED,fs-18,co-00FF88,l-end</span></code>
+            </div>
+            <p style="font-size: 13px; color: var(--accent-green);">Zero GPU overhead on our local server or patrol vehicles!</p>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <h3>3. Smart Object Focus (<code>fo-car</code>, <code>fo-face</code>)</h3>
+            <p>ImageKit AI automatically re-centers and tracks subjects with zoom multipliers (<code>z-1.4</code>) and aspect ratios (<code>ar-16_9</code>).</p>
+          </div>
+          <div class="card">
+            <h3>4. AI Tasks & Remote MCP Servers</h3>
+            <p>Integrates Google Cloud Vision tags for automated scene reconnaissance and supports ImageKit's 3 Model Context Protocol servers (DevTools, DAM, Admin).</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 6: Gangster Dossiers & Crime History -->
+    <div class="slide" data-rubric="INVESTIGATION WORKFLOW & FORENSIC INTEGRITY [15%]" data-notes="When plate 7X9 is found, OVERWATCH instantly matches Elena Viper Rostova of the Obsidian Syndicate. We see her threat level, mugshot, and 'places where she made a mess'. Investigators can log a new formal charge with SHA-256 evidence hashing, updating our permanent case file.">
+      <div class="slide-header">
+        <div class="slide-title-area">
+          <h2>🚨 Syndicate Registry & "Places Where They Made a Mess"</h2>
+          <div class="subtitle">INTEGRATING REAL-TIME CCTV TARGETS WITH LEGAL CASE FILES & CRIME HISTORIES</div>
+        </div>
+        <div class="badge-rubric">SLIDE 06 / 10</div>
+      </div>
+      <div class="slide-content">
+        <div class="grid-2">
+          <div class="card alert">
+            <h3>🕵️ Elena 'Viper' Rostova // CRITICAL THREAT</h3>
+            <p><strong>Syndicate:</strong> Obsidian Syndicate • <strong>Known Plates:</strong> 7X9, 7X9-B42</p>
+            <p><strong>Places Where She Made a Mess:</strong></p>
+            <ul>
+              <li><strong>Port Horizon Cargo Facility:</strong> Armed container theft, $1.2M optical sensors stolen.</li>
+              <li><strong>East District Power Substation:</strong> EMP detonation, blackout caused across Sector 4.</li>
+              <li><strong>North Metro Highway:</strong> High-speed gate breach, patrol vehicle ramming.</li>
+            </ul>
+          </div>
+          <div class="card highlight">
+            <h3>⚖️ Dynamic Legal Accusation Workflow</h3>
+            <ul>
+              <li><strong>Dynamic Case Filing:</strong> Field investigators can type a new crime title, location, incident damage assessment, and commit the accusation right in the UI.</li>
+              <li><strong>Permanent Case Log:</strong> Automatically updates <code>criminal_registry.json</code> in real time with timestamp and issuing officer badge.</li>
+              <li><strong>SHA-256 Forensic Sealing:</strong> Binds the accusation with a cryptographic hash of the video frame for court admissibility.</li>
+              <li><strong>Clean Record Protection:</strong> Unflagged civilian cars display a green <code>✅ CLEAN RECORD</code> banner. Never invents fake suspects!</li>
+            </ul>
+          </div>
+        </div>
+        <div class="image-row">
+          <div class="image-card">
+            <img src="./assets/google_tactical_hud.jpg" alt="Tactical HUD">
+            <div class="caption">Tactical HUD Target Lock & Threat Banner</div>
+          </div>
+          <div class="image-card">
+            <img src="./assets/optical_difference_heatmap.png" alt="Difference Heatmap">
+            <div class="caption">Optical Difference Heatmap (cv2.absdiff)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 7: The Sparse Camera Reality -->
+    <div class="slide" data-rubric="PROBLEM SIGNIFICANCE & SPARSE CAMERA UTILITY [20%]" data-notes="Judges often ask: What if cameras aren't everywhere? We answer with Chokepoint Intercept Theory and Temporal Breadcrumb linking. 90% of vehicles must cross toll gates, gas stations, or bridges. Even 2 cameras 15 kilometers apart are enough to calculate velocity vectors and dispatch intercepts.">
+      <div class="slide-header">
+        <div class="slide-title-area">
+          <h2>🌐 The Sparse Camera Reality: Chokepoints & Breadcrumbs</h2>
+          <div class="subtitle">HOW OVERWATCH DELIVERS TACTICAL VALUE EVEN WHEN CAMERAS ARE SPARSE</div>
+        </div>
+        <div class="badge-rubric">SLIDE 07 / 10</div>
+      </div>
+      <div class="slide-content">
+        <div class="card highlight">
+          <h3>🛣️ Chokepoint Intercept Modeling</h3>
+          <p>You don't need cameras on every corner. In modern transportation infrastructure, over <strong>90% of vehicle transit</strong> is constrained by geographical and structural chokepoints: toll plazas, bridges, tunnel portals, fuel stations, and perimeter security gates.</p>
+          <p>OVERWATCH turns these sparse chokepoints into high-precision tactical interception gates.</p>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <h3>⏱️ Temporal Breadcrumb Linking</h3>
+            <p>When suspect vehicle <code>APX-901</code> is logged at <strong>Toll Gate #1 (14:02)</strong> and re-appears at <strong>Fuel Plaza #4 (14:18)</strong> 20 km away:</p>
+            <ul>
+              <li>Computes average transit speed (75 km/h).</li>
+              <li>Eliminates hidden detour routes.</li>
+              <li>Predicts arrival time at downstream Chokepoint #5.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>📱 Multi-Source Sensor Ingestion</h3>
+            <p>OVERWATCH does not rely solely on fixed municipal poles:</p>
+            <ul>
+              <li>Police patrol vehicle dashcams.</li>
+              <li>Officer body-worn cameras.</li>
+              <li>Civilian dashcam uploads during amber alert emergencies.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 8: 8-Tab Operational Command Center -->
+    <div class="slide" data-rubric="UI/UX & PLATFORM COMPLETENESS [15%]" data-notes="Here is our complete 8-tab mission control. Operators have everything from video telemetry and criminal dossiers to optical motion heatmaps, cm-extract zoom, smart crops, Google Vision AI tasks, layered HUD composers, and an MCP assistant.">
+      <div class="slide-header">
+        <div class="slide-title-area">
+          <h2>💻 The 8-Tab Operational Command Center</h2>
+          <div class="subtitle">A COMPLETE, ZERO-DEPENDENCY SUITE DESIGNED FOR TACTICAL OPERATORS</div>
+        </div>
+        <div class="badge-rubric">SLIDE 08 / 10</div>
+      </div>
+      <div class="slide-content">
+        <div class="grid-2">
+          <div class="card">
+            <h3>Tabs 1 – 4: Vision & Edge Forensics</h3>
+            <ul>
+              <li><strong>Tab 1 (Surveillance Feed):</strong> Automated frame sampling, target radar, telemetry table, and sharpness rankings.</li>
+              <li><strong>Tab 2 (Most Wanted Registry):</strong> Real plate binarization, suspect dossier, crime history, and accusation filing.</li>
+              <li><strong>Tab 3 (Frame Compare & Heatmap):</strong> Optical difference heatmap (<code>cv2.absdiff</code>) showing perimeter intrusion.</li>
+              <li><strong>Tab 4 (Detail Zoom & cm-extract):</strong> Sub-pixel forensic cropping, chained zoom, and laser ground distance meter.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>Tabs 5 – 8: Cloud AI & Compositing</h3>
+            <ul>
+              <li><strong>Tab 5 (Smart Object Crop):</strong> Auto-focusing on cars or faces via ImageKit <code>fo-car</code> with aspect ratio controls.</li>
+              <li><strong>Tab 6 (AI Tasks & Vision):</strong> Scene reconnaissance via Google Cloud Vision labels and entity recognition.</li>
+              <li><strong>Tab 7 (Layered HUD Compositor):</strong> Real-time classified stamps, HUD brackets, and watermarks rendered on CDN.</li>
+              <li><strong>Tab 8 (MCP Assistant):</strong> Natural language prompt builder for ImageKit DevTools, DAM, and Admin MCP servers.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="terminal-box">
+          <code>[QUICK START] 1-CLICK 'LOAD BUNDLED MASTER VIDEO' IN SIDEBAR ➔ READY TO DEMO INSTANTLY WITHOUT UPLOADS</code>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 9: Live Demo Pitch Script -->
+    <div class="slide" data-rubric="PRESENTATION & TIME MANAGEMENT [15%]" data-notes="Follow this exact 2-minute pitch script for Harshad and the judges. Hook in 20 seconds, live demo in 60 seconds, ImageKit tech depth in 30 seconds, and closing in 10 seconds.">
+      <div class="slide-header">
+        <div class="slide-title-area">
+          <h2>🎤 2-Minute Live Pitch & Demo Script</h2>
+          <div class="subtitle">PRECISION SCRIPT CRAFTED SPECIFICALLY FOR THE JUDGES' EVALUATION PANEL</div>
+        </div>
+        <div class="badge-rubric">SLIDE 09 / 10</div>
+      </div>
+      <div class="slide-content">
+        <div class="grid-2">
+          <div class="card highlight">
+            <h3>[0:00 - 0:30] The Hook</h3>
+            <p><em>"Hello judges! Today, surveillance operators drown in low-res CCTV footage. When a vehicle runs a security gate, reading the plate and checking warrants takes hours. We built <strong>OVERWATCH</strong> — the tactical vision intelligence lab that turns raw video into actionable intelligence using OpenCV and ImageKit’s transformation CDN."</em></p>
+          </div>
+          <div class="card highlight">
+            <h3>[0:30 - 1:00] Live Scan & ALPR</h3>
+            <p><em>"(Click 'LOAD BUNDLED MASTER VIDEO' -> 'EXECUTE SCAN') Our engine samples frames, ranks sharpness via Laplacian variance, and isolates plate <code>7X9</code> with CLAHE and Otsu binarization. Notice our skin-tone and color filters prevent false positives on roofs, asphalt lines, and wheels."</em></p>
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="card highlight">
+            <h3>[1:00 - 1:30] Gangster Registry</h3>
+            <p><em>"(Switch to Tab 2) Plate <code>7X9</code> hits Elena 'Viper' Rostova of the Obsidian Syndicate! We see her mugshot and history of 'places where she made a mess'. Right here, we can log a new legal accusation sealed with a SHA-256 cryptographic hash."</em></p>
+          </div>
+          <div class="card highlight">
+            <h3>[1:30 - 2:00] Cloud Edge & Closing</h3>
+            <p><em>"(Switch to Tab 4 & Tab 7) Using ImageKit's <code>cm-extract:w-880</code>, we magnify forensic coordinates without server GPU rendering. In sparse camera networks, our chokepoint model reconstructs travel corridors. Everything is live and open-source on GitHub. Thank you!"</em></p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SLIDE 10: Technical Roadmap & Deliverables -->
+    <div class="slide" data-rubric="SCALABILITY & DELIVERABLES [15%]" data-notes="We deliver a complete, hardened system: app.py, criminal_registry.json, bundled master test video, presentation decks, and full SHA-256 evidence chain-of-custody. Everything is committed to main and tested.">
+      <div class="slide-header">
+        <div class="slide-title-area">
+          <h2>📦 Repository Deliverables & Technical Roadmap</h2>
+          <div class="subtitle">PRODUCTION READINESS, EXTENSIBILITY & HACKATHON VERIFICATION</div>
+        </div>
+        <div class="badge-rubric">SLIDE 10 / 10</div>
+      </div>
+      <div class="slide-content">
+        <div class="grid-2">
+          <div class="card highlight">
+            <h3>📁 Committed Repository Deliverables</h3>
+            <ul>
+              <li><strong>Core Mission Control:</strong> <code>app.py</code> (98 KB hardened Streamlit application).</li>
+              <li><strong>Dossier Database:</strong> <code>criminal_registry.json</code> (Live dynamic read/write registry).</li>
+              <li><strong>Bundled Test Video:</strong> <code>demo_master_surveillance.mp4</code> (Verified car + plate + pedestrian footage).</li>
+              <li><strong>Interactive Pitch Deck:</strong> <code>OVERWATCH_PITCH_DECK.html</code> (Keyboard controlled presentation).</li>
+              <li><strong>Field Guidebook & PPT:</strong> <code>OVERWATCH_JUDGES_PRESENTATION_DECK.md</code>.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h3>🚀 Future Tactical Roadmap</h3>
+            <ul>
+              <li><strong>Autonomous Drone RTSP Ingestion:</strong> Ingest WebRTC feeds directly from perimeter patrol quadcopters.</li>
+              <li><strong>Predictive Corridor Routing:</strong> Integrate OpenStreetMap APIs to calculate escape probabilities across municipal nodes.</li>
+              <li><strong>Municipal VMS Display Broadcasts:</strong> Automatically generate ImageKit alert banners pushed to highway digital signs.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="terminal-box">
+          <code>[VERIFICATION SEAL] SHA-256 CHAIN-OF-CUSTODY ENABLED • PYTHON 3.10+ • OPENCV 4.X • STREAMLIT 1.30+ • IMAGEKIT SDK</code>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Speaker Notes Drawer -->
+  <div id="speaker-notes" class="speaker-notes-drawer">
+    <strong>🎙️ SPEAKER NOTES:</strong> <span id="notes-content">Judges, welcome to OVERWATCH. We brought the Hollywood spy-satellite vision console to life.</span>
+  </div>
+
+  <!-- Bottom Navigation & Controls -->
+  <footer>
+    <div class="nav-controls">
+      <button class="btn-nav" id="btn-prev" onclick="prevSlide()">◀ PREVIOUS [←]</button>
+      <button class="btn-nav" id="btn-next" onclick="nextSlide()">NEXT [→] ▶</button>
+      <button class="btn-nav" id="btn-notes" onclick="toggleNotes()">🎙️ NOTES [S]</button>
+      <button class="btn-nav" id="btn-fullscreen" onclick="toggleFullscreen()">⛶ FULLSCREEN [F]</button>
+    </div>
+    <div class="slide-progress" id="slide-progress">
+      SLIDE 1 OF 10
+    </div>
+  </footer>
+
+  <script>
+    let currentSlide = 0;
+    const slides = document.querySelectorAll('.slide');
+    const progressEl = document.getElementById('slide-progress');
+    const rubricBadge = document.getElementById('rubric-badge');
+    const notesDrawer = document.getElementById('speaker-notes');
+    const notesContent = document.getElementById('notes-content');
+
+    function updateSlide() {
+      slides.forEach((slide, index) => {
+        slide.classList.toggle('active', index === currentSlide);
+      });
+      progressEl.textContent = `SLIDE ${currentSlide + 1} OF ${slides.length}`;
+      
+      const activeSlide = slides[currentSlide];
+      rubricBadge.textContent = `JUDGING RUBRIC: ${activeSlide.dataset.rubric || 'TACTICAL INTELLIGENCE'}`;
+      notesContent.textContent = activeSlide.dataset.notes || 'No speaker notes for this slide.';
+    }
+
+    function nextSlide() {
+      if (currentSlide < slides.length - 1) {
+        currentSlide++;
+        updateSlide();
+      }
+    }
+
+    function prevSlide() {
+      if (currentSlide > 0) {
+        currentSlide--;
+        updateSlide();
+      }
+    }
+
+    function toggleNotes() {
+      notesDrawer.classList.toggle('open');
+    }
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen();
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        }
+      }
+    }
+
+    // Keyboard navigation
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+        nextSlide();
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        prevSlide();
+      } else if (e.key === 's' || e.key === 'S') {
+        toggleNotes();
+      } else if (e.key === 'f' || e.key === 'F') {
+        toggleFullscreen();
+      }
+    });
+
+    // Initialize
+    updateSlide();
+  </script>
+</body>
+</html>
