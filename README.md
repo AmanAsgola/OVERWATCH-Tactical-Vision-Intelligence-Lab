@@ -6,6 +6,24 @@ Welcome to **OVERWATCH**, a mission-control intelligence application built for t
 
 ---
 
+## 🏆 Presentation Decks for Judges & Hackathon Evaluators
+
+* 📑 **Official Judging Presentation Deck (Markdown):** [OVERWATCH_JUDGES_PRESENTATION_DECK.md](./OVERWATCH_JUDGES_PRESENTATION_DECK.md)
+* 🖥️ **Interactive Cyberpunk HTML Pitch Deck:** [OVERWATCH_PITCH_DECK.html](./OVERWATCH_PITCH_DECK.html) *(Open in browser with keyboard controls `[←] [→]`, `[S]` for Speaker Notes, and `[F]` for Fullscreen)*
+* 📖 **Operator Field Guidebook:** [OVERWATCH_FIELD_GUIDE_AND_PPT.md](./OVERWATCH_FIELD_GUIDE_AND_PPT.md)
+
+### 🎯 Hackathon Rubric Scorecard
+| Judging Criterion | Weight | OVERWATCH Implementation Highlight |
+| :--- | :---: | :--- |
+| **ImageKit Platform Depth & Elegance** | **25%** | Sub-pixel `cm-extract:w-880`, `fo-car`/`fo-face` smart crops, layered edge HUD compositor (`l-image`/`l-text`), and remote MCP server workflows. |
+| **Engineering Rigor & CV Accuracy** | **25%** | YCrCb skin chrominance mask eliminates wheel rims falsely flagged as faces; HSV yellow/white plate filters reject asphalt parking lines & roof slats; CLAHE + Otsu binarization. |
+| **Real-World Utility & Problem Significance** | **20%** | Solves sparse camera environments via Chokepoint Intercept Theory and Temporal Breadcrumb linking. |
+| **Investigation Workflow & Forensic Integrity** | **15%** | Persistent Most Wanted Gangster Registry, "Places where they made a mess" crime logs, SHA-256 evidence sealing, and zero-hallucination clean record protection. |
+| **UI/UX & Live Demo Polish** | **15%** | High-tech cyberpunk tactical HUD across 8 mission tabs; 1-click bundled master video for immediate testing. |
+
+
+---
+
 ## ⚡ Mission Features at a Glance
 
 | Feature | Description | ImageKit & CV Technology |
