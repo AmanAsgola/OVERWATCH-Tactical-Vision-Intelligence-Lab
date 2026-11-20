@@ -1,0 +1,126 @@
+[
+  {
+    "id": "SUSPECT-001",
+    "name": "Elena 'Viper' Rostova",
+    "alias": "Viper",
+    "syndicate": "Red Star Syndicate",
+    "threat_level": "CRITICAL",
+    "status": "WANTED // ACTIVE WARRANT",
+    "known_plates": ["7X9", "7X9-B42", "VIP-881"],
+    "registered_vehicle": "Black Armored Sedan (Class B)",
+    "image_url": "https://ik.imagekit.io/ikmedia/docs_images/examples/example_portrait_1.jpg",
+    "messes_and_incidents": [
+      {
+        "date": "2025-08-14",
+        "location": "Port Metro Cargo Terminal 3",
+        "incident": "Warehouse Exploded & Cargo Robbery",
+        "details": "Detonated perimeter gate, hijacked shipping container containing military telemetry gear."
+      },
+      {
+        "date": "2026-02-03",
+        "location": "Downtown Diamond Exchange",
+        "incident": "Perimeter Alarm Bypass & Grand Theft",
+        "details": "Disabled surveillance junction box, neutralized vault sensors."
+      },
+      {
+        "date": "2026-07-19",
+        "location": "High-Speed Pursuit on Route 82",
+        "incident": "Felony Evasion & Officer Endangerment",
+        "details": "Evaded highway interceptors using a black sedan with falsified plates."
+      }
+    ],
+    "accusations": [
+      "Grand Larceny (Class A)",
+      "Destruction of Critical Infrastructure",
+      "Armed Felony Evasion",
+      "Unlawful Weapons Trafficking"
+    ],
+    "last_seen_location": "Sector 4 North Gate Perimeter"
+  },
+  {
+    "id": "SUSPECT-002",
+    "name": "Marcus 'Apex' Vance",
+    "alias": "Apex",
+    "syndicate": "Downtown Cartel",
+    "threat_level": "HIGH",
+    "status": "WANTED FOR QUESTIONING",
+    "known_plates": ["APX-901", "7X9-APX"],
+    "registered_vehicle": "Dark Blue Heavy Pickup",
+    "image_url": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=300&q=80",
+    "messes_and_incidents": [
+      {
+        "date": "2024-11-12",
+        "location": "Central Metro Bank",
+        "incident": "Armored Courier Ambush",
+        "details": "Ramming attack against security transport, stole bearer bonds."
+      },
+      {
+        "date": "2025-10-30",
+        "location": "Westside Fuel Depot",
+        "incident": "Arson & Extortion Racket",
+        "details": "Ignited storage silo after extortion payment refused."
+      }
+    ],
+    "accusations": [
+      "Armored Vehicle Robbery",
+      "Arson in the First Degree",
+      "Racketeering & Conspiracy"
+    ],
+    "last_seen_location": "Industrial District East"
+  },
+  {
+    "id": "SUSPECT-003",
+    "name": "Sofia 'Siren' Chen",
+    "alias": "Siren",
+    "syndicate": "Neon Lotus",
+    "threat_level": "MODERATE",
+    "status": "PERSON OF INTEREST",
+    "known_plates": ["SLV-447", "CYB-101"],
+    "registered_vehicle": "Silver Sports Coupe",
+    "image_url": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80",
+    "messes_and_incidents": [
+      {
+        "date": "2026-03-22",
+        "location": "Grand Apex Hotel & Casino",
+        "incident": "CCTV & Security Feed Blackout",
+        "details": "Injected malicious firmware into private surveillance grid during high-roller gala."
+      }
+    ],
+    "accusations": [
+      "Cyber Infiltration of Private Surveillance",
+      "Possession of Illegal Decoding Hardware"
+    ],
+    "last_seen_location": "Metropolitan Plaza"
+  },
+  {
+    "id": "SUSPECT-004",
+    "name": "Viktor 'Hammer' Reznov",
+    "alias": "Hammer",
+    "syndicate": "Northside Enforcers",
+    "threat_level": "CRITICAL",
+    "status": "FUGITIVE AT LARGE",
+    "known_plates": ["REZ-303", "HAM-999"],
+    "registered_vehicle": "Reinforced Utility Van",
+    "image_url": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80",
+    "messes_and_incidents": [
+      {
+        "date": "2025-05-18",
+        "location": "Federal Rail Yard",
+        "incident": "Freight Sabotage & Metal Smuggling",
+        "details": "Derailed cargo car to extract specialized industrial titanium alloys."
+      },
+      {
+        "date": "2026-01-11",
+        "location": "Docklands Warehouse 9",
+        "incident": "Enforcer Brawl & Severe Property Destruction",
+        "details": "Demolished warehouse interior and surveillance cameras with heavy machinery."
+      }
+    ],
+    "accusations": [
+      "Industrial Sabotage",
+      "Aggravated Assault on Federal Property",
+      "Extortion"
+    ],
+    "last_seen_location": "Docklands Sector 2"
+  }
+]
