@@ -8,7 +8,8 @@ Welcome to **OVERWATCH**, a mission-control intelligence application built for t
 
 ## 🏆 Presentation Decks for Judges & Hackathon Evaluators
 
-* 📑 **Official Judging Presentation Deck (Markdown):** [OVERWATCH_JUDGES_PRESENTATION_DECK.md](./OVERWATCH_JUDGES_PRESENTATION_DECK.md)
+* 🌟 **Simple Presentation & Judge Pitch Guide (Plain English):** [SIMPLE_JUDGES_PITCH.md](./SIMPLE_JUDGES_PITCH.md)
+* 📑 **Official Judging Presentation Deck (Technical / Full Matrix):** [OVERWATCH_JUDGES_PRESENTATION_DECK.md](./OVERWATCH_JUDGES_PRESENTATION_DECK.md)
 * 🖥️ **Interactive Cyberpunk HTML Pitch Deck:** [OVERWATCH_PITCH_DECK.html](./OVERWATCH_PITCH_DECK.html) *(Open in browser with keyboard controls `[←] [→]`, `[S]` for Speaker Notes, and `[F]` for Fullscreen)*
 * 📖 **Operator Field Guidebook:** [OVERWATCH_FIELD_GUIDE_AND_PPT.md](./OVERWATCH_FIELD_GUIDE_AND_PPT.md)
 

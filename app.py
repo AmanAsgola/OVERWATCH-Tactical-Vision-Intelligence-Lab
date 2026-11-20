@@ -7,6 +7,13 @@ import streamlit as st
 from PIL import Image
 import requests
 
+# Optional fast-alpr ONNX Neural ALPR & OCR framework (ankandrew/fast-alpr)
+try:
+    from fast_alpr import ALPR
+    FAST_ALPR_AVAILABLE = True
+except Exception:
+    FAST_ALPR_AVAILABLE = False
+
 # Guaranteed global defaults for vision detection filters across all scopes
 flt_face = True
 flt_body = True
@@ -227,11 +234,58 @@ def calculate_sharpness(img_bgr):
     gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
     return float(cv2.Laplacian(gray, cv2.CV_64F).var())
 
+@st.cache_resource
+def load_fast_alpr_engine():
+    """Loads and caches the ONNX-optimized YOLOv9-S + CCT-XS ALPR framework (ankandrew/fast-alpr)."""
+    if not FAST_ALPR_AVAILABLE:
+        return None
+    try:
+        return ALPR(
+            detector_model='yolo-v9-s-608-license-plate-end2end',
+            ocr_model='cct-xs-v2-global-model',
+            detector_conf_thresh=0.20
+        )
+    except Exception:
+        return None
+
+def read_plate_characters(plate_bgr):
+    """Uses ankandrew/fast-alpr CCT OCR model to recognize alphanumeric characters in milliseconds."""
+    if plate_bgr is None or plate_bgr.size == 0:
+        return None, 0.0, None
+    engine = load_fast_alpr_engine()
+    if engine is None or not hasattr(engine, 'ocr'):
+        return None, 0.0, None
+    try:
+        res = engine.ocr.predict(plate_bgr)
+        if res and hasattr(res, 'text') and res.text:
+            avg_conf = float(np.mean(res.confidence)) if hasattr(res, 'confidence') and len(res.confidence) > 0 else 0.85
+            return res.text, avg_conf, getattr(res, 'region', 'Global')
+    except Exception:
+        pass
+    return None, 0.0, None
+
 def find_plate_in_crop(car_crop_bgr):
-    """Extracts the exact license plate region from a detected vehicle crop using multi-heuristic ALPR."""
+    """Extracts the exact license plate region from a detected vehicle crop using multi-heuristic ALPR and fast-alpr."""
     if car_crop_bgr is None or car_crop_bgr.size == 0:
         return None, None
     h, w = car_crop_bgr.shape[:2]
+    
+    # 0. Primary Neural ALPR: Try ankandrew/fast-alpr (YOLOv9-S ONNX) on the localized vehicle crop
+    alpr_engine = load_fast_alpr_engine()
+    if alpr_engine is not None:
+        try:
+            preds = alpr_engine.predict(car_crop_bgr)
+            if preds and len(preds) > 0:
+                best = max(preds, key=lambda p: p.detection.confidence)
+                if best.detection.confidence >= 0.20:
+                    bb = best.detection.bounding_box
+                    bx, by = max(0, int(bb.x1)), max(0, int(bb.y1))
+                    bw = min(w - bx, int(bb.x2 - bb.x1))
+                    bh = min(h - by, int(bb.y2 - bb.y1))
+                    if bw >= 14 and bh >= 8:
+                        return car_crop_bgr[by:by+bh, bx:bx+bw], (bx, by, bw, bh)
+        except Exception:
+            pass
     
     # Optional upscaling for small crops to enhance character edges
     scale = max(1.0, 220.0 / max(1, w))
@@ -351,10 +405,11 @@ def save_criminal_registry(data):
 def search_suspect_by_plate(plate):
     if not plate: return None
     db = load_criminal_registry()
-    clean_p = plate.strip().upper()
+    clean_p = plate.strip().upper().replace("-", "").replace(" ", "")
     for s in db:
         for kp in s.get('known_plates', []):
-            if clean_p in kp.upper() or kp.upper() in clean_p:
+            clean_kp = kp.upper().replace("-", "").replace(" ", "")
+            if clean_p in clean_kp or clean_kp in clean_p:
                 return s
     return None
 
@@ -544,15 +599,20 @@ def analyze_surveillance_frame(frame, timestamp, idx, detect_faces=True, detect_
             p_crop = frame[py:py+ph, px:px+pw]
             if p_crop is not None and p_crop.size > 0:
                 sharpness = calculate_sharpness(p_crop)
+                ocr_text, ocr_conf, ocr_region = read_plate_characters(p_crop)
+                label_text = f"PLATE {ocr_text}" if ocr_text else f"PLATE {target_idx}"
                 cv2.rectangle(annotated, (px, py), (px+pw, py+ph), (0, 242, 254), 2)
-                cv2.putText(annotated, f"PLATE {target_idx}", (px, max(15, py-6)), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 242, 254), 1)
+                cv2.putText(annotated, label_text, (px, max(15, py-6)), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 242, 254), 1)
                 crops.append({
                     'id': target_idx,
                     'type': 'License Plate',
                     'timestamp': timestamp,
                     'crop_rgb': cv2.cvtColor(p_crop, cv2.COLOR_BGR2RGB),
                     'sharpness': sharpness,
-                    'bbox': (px, py, pw, ph)
+                    'bbox': (px, py, pw, ph),
+                    'ocr_text': ocr_text,
+                    'ocr_conf': ocr_conf,
+                    'ocr_region': ocr_region
                 })
                 
                 # Anchor the vehicle bounding box around this real plate!
@@ -1221,7 +1281,8 @@ with tab_criminal:
                     st.caption("No vehicle body bounding box")
             with v_cols[1]:
                 if plate_crops:
-                    p_rgb = plate_crops[0]['crop_rgb']
+                    p_info = plate_crops[0]
+                    p_rgb = p_info['crop_rgb']
                     p_bgr = cv2.cvtColor(p_rgb, cv2.COLOR_RGB2BGR)
                     enh_clahe, enh_binary = enhance_license_plate(p_bgr)
                     if enh_binary is not None:
@@ -1230,6 +1291,24 @@ with tab_criminal:
                         st.image(enh_clahe, caption="Extracted Real Plate (CLAHE Enhanced)", use_container_width=True)
                     else:
                         st.image(p_rgb, caption="Extracted Real Plate", use_container_width=True)
+                    
+                    # Real-time fast-alpr OCR readout (ankandrew/fast-alpr)
+                    p_ocr = p_info.get('ocr_text')
+                    if not p_ocr:
+                        p_ocr, p_conf, p_reg = read_plate_characters(p_bgr)
+                    else:
+                        p_conf = p_info.get('ocr_conf', 0.95)
+                        p_reg = p_info.get('ocr_region', 'Global')
+                        
+                    if p_ocr:
+                        st.markdown(f'''
+                        <div style="background: rgba(0, 242, 254, 0.12); border: 1px solid #00f2fe; border-radius: 6px; padding: 8px 12px; margin-top: 6px; font-family: 'JetBrains Mono', monospace; font-size: 12px;">
+                            <b>🤖 Fast-ALPR Neural OCR:</b> <span style="color: #00ff88; font-size: 14px; font-weight: 800;">{p_ocr}</span><br>
+                            <span style="color: #79a6d2; font-size: 11px;">Confidence: {p_conf:.1%} • Region: {p_reg} • Engine: YOLOv9 + CCT-XS (ankandrew)</span>
+                        </div>
+                        ''', unsafe_allow_html=True)
+                        if not st.session_state.get('selected_plate'):
+                            st.session_state['selected_plate'] = p_ocr
                 else:
                     st.caption("Plate region pending extraction")
         
@@ -1259,6 +1338,14 @@ with tab_criminal:
                 with res_col2:
                     if m_bin is not None:
                         st.image(m_bin, caption="Enhanced Plate Binary (CLAHE/Otsu)", use_container_width=True)
+                        
+                m_ocr, m_conf, m_reg = read_plate_characters(c_bgr)
+                if m_ocr:
+                    st.markdown(f'''
+                    <div style="background: rgba(0, 242, 254, 0.12); border: 1px solid #00f2fe; border-radius: 6px; padding: 6px 10px; margin-top: 6px; font-family: 'JetBrains Mono', monospace; font-size: 11px;">
+                        <b>🤖 Pinpoint OCR:</b> <span style="color: #00ff88; font-weight: bold;">{m_ocr}</span> ({m_conf:.1%}) • Region: {m_reg}
+                    </div>
+                    ''', unsafe_allow_html=True)
             else:
                 st.info("Upload video footage or load the scenario in Tab 1 to enable manual ALPR pinpointing.")
         
