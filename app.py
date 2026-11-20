@@ -296,12 +296,27 @@ def find_plate_in_crop(car_crop_bgr):
         bx, by, bw, bh = best_box
         return car_crop_bgr[by:by+bh, bx:bx+bw], best_box
         
-    # 3. Fallback: Center-lower bumper slice of the vehicle
-    fb_w = max(25, int(w * 0.45))
-    fb_h = max(15, int(h * 0.22))
-    fb_x = int(w * 0.27)
-    fb_y = int(h * 0.62)
-    return car_crop_bgr[fb_y:fb_y+fb_h, fb_x:fb_x+fb_w], (fb_x, fb_y, fb_w, fb_h)
+    # 3. Color-based plate detection (Yellow or White plate) inside crop
+    hsv_c = cv2.cvtColor(car_crop_bgr, cv2.COLOR_BGR2HSV)
+    mask_y = cv2.inRange(hsv_c, np.array([16, 70, 70]), np.array([45, 255, 255]))
+    cnts_y, _ = cv2.findContours(mask_y, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    for c in cnts_y:
+        if cv2.contourArea(c) > 35:
+            cx, cy, cw, ch = cv2.boundingRect(c)
+            aspect = cw / max(1, ch)
+            if 1.2 <= aspect <= 3.8 and cw >= 16 and ch >= 8:
+                return car_crop_bgr[cy:cy+ch, cx:cx+cw], (cx, cy, cw, ch)
+                
+    mask_w = cv2.inRange(hsv_c, np.array([0, 0, 175]), np.array([180, 45, 255]))
+    cnts_w, _ = cv2.findContours(mask_w, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    for c in cnts_w:
+        if cv2.contourArea(c) > 50:
+            cx, cy, cw, ch = cv2.boundingRect(c)
+            aspect = cw / max(1, ch)
+            if 1.5 <= aspect <= 4.8 and cw >= 20 and ch >= 10:
+                return car_crop_bgr[cy:cy+ch, cx:cx+cw], (cx, cy, cw, ch)
+
+    return None, None
 
 def enhance_license_plate(plate_bgr):
     """Enhances a license plate crop with CLAHE and Otsu binarization for clear human reading."""
@@ -411,11 +426,17 @@ def analyze_surveillance_frame(frame, timestamp, idx, detect_faces=True, detect_
     
     target_idx = 1
     
-    # 1. Frontal & Profile Face Detection
+    # 1. Frontal & Profile Face Detection (Strict Human Skin Tone Verification)
     if detect_faces:
-        faces = cascades['frontalface'].detectMultiScale(gray, scaleFactor=1.12, minNeighbors=5, minSize=(30, 30))
+        faces = cascades['frontalface'].detectMultiScale(gray, scaleFactor=1.12, minNeighbors=5, minSize=(32, 32))
         for (x, y, w, h) in faces:
             crop = frame[y:y+h, x:x+w]
+            # Verify human skin chrominance in YCrCb to filter out car alloy wheels, tires, and grilles
+            ycrcb = cv2.cvtColor(crop, cv2.COLOR_BGR2YCrCb)
+            skin_mask = (ycrcb[:,:,1] >= 133) & (ycrcb[:,:,1] <= 173) & (ycrcb[:,:,2] >= 77) & (ycrcb[:,:,2] <= 127)
+            if np.mean(skin_mask) < 0.16:
+                continue  # Discard wheel rims and non-human circular objects
+                
             sharpness = calculate_sharpness(crop)
             label = f"SUSPECT {target_idx} [FACE]"
             
@@ -472,43 +493,116 @@ def analyze_surveillance_frame(frame, timestamp, idx, detect_faces=True, detect_
             })
             target_idx += 1
 
-    # 3. Direct Full-Frame License Plate Cascade Scanner (ALPR)
+    # 3. Precision License Plate Scanner (Yellow, White, and Haar ALPR)
     if detect_vehicles:
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        detected_plates = []
+        
+        # A. Yellow License Plates (e.g. Japanese Kei/Commercial, UK rear, Netherlands)
+        mask_y = cv2.inRange(hsv, np.array([16, 70, 65]), np.array([42, 255, 255]))
+        mask_y[:int(h_orig * 0.30), :] = 0  # Ignore sky / building roofs
+        mask_y[int(h_orig * 0.82):, :] = 0  # Ignore foreground parking lines
+        k_y = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 3))
+        cl_y = cv2.morphologyEx(mask_y, cv2.MORPH_CLOSE, k_y)
+        cnts_y, _ = cv2.findContours(cl_y, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        for c in cnts_y:
+            area = cv2.contourArea(c)
+            if 100 < area < 5000:
+                bx, by, bw, bh = cv2.boundingRect(c)
+                aspect = bw / float(bh)
+                if 1.25 <= aspect <= 3.8 and 18 <= bw <= 150 and 10 <= bh <= 60:
+                    detected_plates.append((bx, by, bw, bh))
+                    
+        # B. White / Silver License Plates (US, EU, India, Private)
+        mask_w = cv2.inRange(hsv, np.array([0, 0, 180]), np.array([180, 40, 255]))
+        mask_w[:int(h_orig * 0.30), :] = 0
+        mask_w[int(h_orig * 0.82):, :] = 0
+        k_w = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 3))
+        cl_w = cv2.morphologyEx(mask_w, cv2.MORPH_CLOSE, k_w)
+        cnts_w, _ = cv2.findContours(cl_w, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        for c in cnts_w:
+            area = cv2.contourArea(c)
+            if 120 < area < 6000:
+                bx, by, bw, bh = cv2.boundingRect(c)
+                aspect = bw / float(bh)
+                if 1.5 <= aspect <= 4.8 and 22 <= bw <= 160 and 12 <= bh <= 55:
+                    crop_g = gray[by:by+bh, bx:bx+bw]
+                    edg = cv2.Canny(crop_g, 50, 150)
+                    if 0.10 <= (np.sum(edg > 0) / float(bw * bh)) <= 0.65:
+                        detected_plates.append((bx, by, bw, bh))
+                        
+        # C. Haar Cascade Scanner with minNeighbors=4 (Strict verification)
         cascades = load_cascades()
         if 'plate' in cascades and not cascades['plate'].empty():
-            plates = cascades['plate'].detectMultiScale(gray, scaleFactor=1.06, minNeighbors=1, minSize=(25, 10))
-            for (px, py, pw, ph) in plates:
-                p_crop = frame[py:py+ph, px:px+pw]
-                if p_crop is not None and p_crop.size > 0:
-                    sharpness = calculate_sharpness(p_crop)
-                    cv2.rectangle(annotated, (px, py), (px+pw, py+ph), (0, 242, 254), 2)
-                    cv2.putText(annotated, f"PLATE {target_idx}", (px, max(15, py-6)), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (0, 242, 254), 1)
+            plates_h = cascades['plate'].detectMultiScale(gray, scaleFactor=1.08, minNeighbors=4, minSize=(30, 12), maxSize=(220, 80))
+            for (hx, hy, hw, hh) in plates_h:
+                if hy > int(h_orig * 0.28):
+                    detected_plates.append((hx, hy, hw, hh))
                     
-                    crops.append({
-                        'id': target_idx,
-                        'type': 'License Plate',
-                        'timestamp': timestamp,
-                        'crop_rgb': cv2.cvtColor(p_crop, cv2.COLOR_BGR2RGB),
-                        'sharpness': sharpness,
-                        'bbox': (px, py, pw, ph)
-                    })
-                    target_idx += 1
-                    if target_idx > 10:
-                        break
+        # Process each verified plate and its anchored vehicle
+        for (px, py, pw, ph) in detected_plates:
+            p_crop = frame[py:py+ph, px:px+pw]
+            if p_crop is not None and p_crop.size > 0:
+                sharpness = calculate_sharpness(p_crop)
+                cv2.rectangle(annotated, (px, py), (px+pw, py+ph), (0, 242, 254), 2)
+                cv2.putText(annotated, f"PLATE {target_idx}", (px, max(15, py-6)), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 242, 254), 1)
+                crops.append({
+                    'id': target_idx,
+                    'type': 'License Plate',
+                    'timestamp': timestamp,
+                    'crop_rgb': cv2.cvtColor(p_crop, cv2.COLOR_BGR2RGB),
+                    'sharpness': sharpness,
+                    'bbox': (px, py, pw, ph)
+                })
+                
+                # Anchor the vehicle bounding box around this real plate!
+                vw = min(w_orig - 10, int(pw * 9.5))
+                vh = min(h_orig - 10, int(ph * 7.0))
+                vx = max(0, min(w_orig - vw, px - int(pw * 4.2)))
+                vy = max(0, min(h_orig - vh, py - int(ph * 5.2)))
+                v_crop = frame[vy:vy+vh, vx:vx+vw]
+                
+                cv2.rectangle(annotated, (vx, vy), (vx+vw, vy+vh), (255, 170, 0), 2)
+                cv2.putText(annotated, f"VEHICLE {target_idx}", (vx, max(20, vy-8)), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 170, 0), 1)
+                
+                records.append({
+                    'target_id': target_idx,
+                    'type': 'Vehicle',
+                    'frame': idx,
+                    'time_s': round(timestamp, 2),
+                    'x': int(vx), 'y': int(vy), 'w': int(vw), 'h': int(vh),
+                    'xc': int(vx + vw//2), 'yc': int(vy + vh//2),
+                    'sharpness': calculate_sharpness(v_crop)
+                })
+                crops.append({
+                    'id': target_idx,
+                    'type': 'Vehicle',
+                    'timestamp': timestamp,
+                    'crop_rgb': cv2.cvtColor(v_crop, cv2.COLOR_BGR2RGB),
+                    'sharpness': calculate_sharpness(v_crop),
+                    'bbox': (vx, vy, vw, vh)
+                })
+                target_idx += 1
+                if target_idx > 8:
+                    break
 
-    # 4. Vehicle / Road Object Detection (Full-Frame & Roadway Contour Analysis)
-    if detect_vehicles:
-        blur = cv2.GaussianBlur(gray, (5, 5), 0)
-        edges = cv2.Canny(blur, 50, 140)
-        dil = cv2.dilate(edges, np.ones((3, 3), np.uint8), iterations=1)
+    # 4. Roadway Vehicle Motion & Contour Scanner (Strict Roadway Area Only)
+    if detect_vehicles and len(crops) == 0:
+        # Only scan the lower roadway plane (y > 0.35 * h_orig) to exclude buildings and rooflines
+        road_y = int(h_orig * 0.35)
+        road_gray = gray[road_y:, :]
+        blur = cv2.GaussianBlur(road_gray, (5, 5), 0)
+        edges = cv2.Canny(blur, 60, 150)
+        dil = cv2.dilate(edges, np.ones((5, 5), np.uint8), iterations=1)
         contours, _ = cv2.findContours(dil, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         for c in contours:
             area = cv2.contourArea(c)
-            if area > 1400:
+            if 2500 < area < 100000:
                 vx, vy, vw, vh = cv2.boundingRect(c)
+                vy += road_y
                 aspect = vw / max(1, vh)
-                # Broadened aspect ratio for front, side, and rear car angles
-                if 0.85 <= aspect <= 4.5 and vw > 50 and vh > 35:
+                # Filter for vehicle-like rectangles on road
+                if 1.1 <= aspect <= 3.6 and vw > 65 and 35 < vh < int(h_orig * 0.50):
                     crop = frame[vy:vy+vh, vx:vx+vw]
                     sharpness = calculate_sharpness(crop)
                     label = f"VEHICLE {target_idx}"
@@ -533,7 +627,7 @@ def analyze_surveillance_frame(frame, timestamp, idx, detect_faces=True, detect_
                         'sharpness': sharpness,
                         'bbox': (vx, vy, vw, vh)
                     })
-                    # Extract License Plate from this vehicle crop
+                    # Extract License Plate only if genuine plate is found
                     plate_crop, pbox = find_plate_in_crop(crop)
                     if plate_crop is not None and plate_crop.size > 0:
                         crops.append({
@@ -546,7 +640,7 @@ def analyze_surveillance_frame(frame, timestamp, idx, detect_faces=True, detect_
                             'parent_id': target_idx
                         })
                     target_idx += 1
-                    if target_idx > 12:
+                    if target_idx > 8:
                         break
 
     return annotated, records, crops
