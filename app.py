@@ -223,48 +223,77 @@ def calculate_sharpness(img_bgr):
     return float(cv2.Laplacian(gray, cv2.CV_64F).var())
 
 def find_plate_in_crop(car_crop_bgr):
-    """Extracts the exact license plate region from a detected vehicle crop."""
+    """Extracts the exact license plate region from a detected vehicle crop using multi-heuristic ALPR."""
     if car_crop_bgr is None or car_crop_bgr.size == 0:
         return None, None
     h, w = car_crop_bgr.shape[:2]
-    lower_y = int(h * 0.45)
-    bumper = car_crop_bgr[lower_y:, :]
-    gray = cv2.cvtColor(bumper, cv2.COLOR_BGR2GRAY)
     
+    # Optional upscaling for small crops to enhance character edges
+    scale = max(1.0, 220.0 / max(1, w))
+    if scale > 1.05 and scale < 3.0:
+        search_crop = cv2.resize(car_crop_bgr, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_CUBIC)
+    else:
+        search_crop = car_crop_bgr
+        scale = 1.0
+        
+    sh, sw = search_crop.shape[:2]
+    gray = cv2.cvtColor(search_crop, cv2.COLOR_BGR2GRAY)
+    
+    # 1. Haar plate cascade
     cascades = load_cascades()
     if 'plate' in cascades and not cascades['plate'].empty():
-        plates = cascades['plate'].detectMultiScale(gray, scaleFactor=1.1, minNeighbors=2, minSize=(25, 10))
+        plates = cascades['plate'].detectMultiScale(gray, scaleFactor=1.06, minNeighbors=1, minSize=(20, 8))
         if len(plates) > 0:
             px, py, pw, ph = plates[0]
-            return car_crop_bgr[lower_y + py:lower_y + py + ph, px:px + pw], (px, lower_y + py, pw, ph)
+            # Convert back to original crop coordinates
+            rx = int(px / scale)
+            ry = int(py / scale)
+            rw = int(pw / scale)
+            rh = int(ph / scale)
+            return car_crop_bgr[ry:ry + rh, rx:rx + rw], (rx, ry, rw, rh)
             
-    # Morphological Edge Rectangles (Aspect ratio 1.8 - 5.5)
-    blur = cv2.GaussianBlur(gray, (5, 5), 0)
-    sobel = cv2.Sobel(blur, cv2.CV_8U, 1, 0, ksize=3)
-    _, thresh = cv2.threshold(sobel, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (17, 3))
-    morph = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
-    contours, _ = cv2.findContours(morph, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # 2. Blackhat morphological operation (isolates dark characters on light background)
+    rect_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (13, 5))
+    blackhat = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, rect_kernel)
+    
+    # Sobel gradient along X axis
+    grad_x = cv2.Sobel(blackhat, ddepth=cv2.CV_32F, dx=1, dy=0, ksize=-1)
+    grad_x = np.absolute(grad_x)
+    (min_val, max_val) = (np.min(grad_x), np.max(grad_x))
+    if max_val > min_val:
+        grad_x = (255 * ((grad_x - min_val) / (max_val - min_val))).astype("uint8")
+    else:
+        grad_x = grad_x.astype("uint8")
+        
+    grad_x = cv2.GaussianBlur(grad_x, (5, 5), 0)
+    _, thresh = cv2.threshold(grad_x, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+    
+    # Close characters horizontally into a solid plate bounding block
+    close_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (19, 5))
+    thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, close_kernel)
+    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     
     best_box = None
     max_area = 0
     for c in contours:
         area = cv2.contourArea(c)
-        if area > 80:
+        if area > 60:
             cx, cy, cw, ch = cv2.boundingRect(c)
             aspect = cw / max(1, ch)
-            if 1.8 <= aspect <= 5.5 and cw > 30:
-                if area > max_area:
-                    max_area = area
-                    best_box = (cx, lower_y + cy, cw, ch)
+            if 1.5 <= aspect <= 5.8 and cw >= 25:
+                # Prioritize lower bumper region
+                score = area * (1.6 if cy > sh * 0.35 else 1.0)
+                if score > max_area:
+                    max_area = score
+                    best_box = (int(cx / scale), int(cy / scale), int(cw / scale), int(ch / scale))
                     
     if best_box:
         bx, by, bw, bh = best_box
         return car_crop_bgr[by:by+bh, bx:bx+bw], best_box
         
-    # Center-lower bumper slice of the real vehicle
-    fb_w = max(20, int(w * 0.45))
-    fb_h = max(15, int(h * 0.25))
+    # 3. Fallback: Center-lower bumper slice of the vehicle
+    fb_w = max(25, int(w * 0.45))
+    fb_h = max(15, int(h * 0.22))
     fb_x = int(w * 0.27)
     fb_y = int(h * 0.62)
     return car_crop_bgr[fb_y:fb_y+fb_h, fb_x:fb_x+fb_w], (fb_x, fb_y, fb_w, fb_h)
@@ -438,20 +467,43 @@ def analyze_surveillance_frame(frame, timestamp, idx, detect_faces=True, detect_
             })
             target_idx += 1
 
-    # 3. Vehicle / Road Object Detection (Contour & threshold analysis for surveillance roads)
+    # 3. Direct Full-Frame License Plate Cascade Scanner (ALPR)
     if detect_vehicles:
-        # Lower region of frame typically contains roadway
-        road_roi = gray[int(h_orig * 0.45):, :]
-        blur = cv2.GaussianBlur(road_roi, (5, 5), 0)
-        edges = cv2.Canny(blur, 60, 150)
-        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        cascades = load_cascades()
+        if 'plate' in cascades and not cascades['plate'].empty():
+            plates = cascades['plate'].detectMultiScale(gray, scaleFactor=1.06, minNeighbors=1, minSize=(25, 10))
+            for (px, py, pw, ph) in plates:
+                p_crop = frame[py:py+ph, px:px+pw]
+                if p_crop is not None and p_crop.size > 0:
+                    sharpness = calculate_sharpness(p_crop)
+                    cv2.rectangle(annotated, (px, py), (px+pw, py+ph), (0, 242, 254), 2)
+                    cv2.putText(annotated, f"PLATE {target_idx}", (px, max(15, py-6)), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (0, 242, 254), 1)
+                    
+                    crops.append({
+                        'id': target_idx,
+                        'type': 'License Plate',
+                        'timestamp': timestamp,
+                        'crop_rgb': cv2.cvtColor(p_crop, cv2.COLOR_BGR2RGB),
+                        'sharpness': sharpness,
+                        'bbox': (px, py, pw, ph)
+                    })
+                    target_idx += 1
+                    if target_idx > 10:
+                        break
+
+    # 4. Vehicle / Road Object Detection (Full-Frame & Roadway Contour Analysis)
+    if detect_vehicles:
+        blur = cv2.GaussianBlur(gray, (5, 5), 0)
+        edges = cv2.Canny(blur, 50, 140)
+        dil = cv2.dilate(edges, np.ones((3, 3), np.uint8), iterations=1)
+        contours, _ = cv2.findContours(dil, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         for c in contours:
             area = cv2.contourArea(c)
-            if area > 1800:
+            if area > 1400:
                 vx, vy, vw, vh = cv2.boundingRect(c)
-                vy += int(h_orig * 0.45)
-                # Filter aspect ratio for vehicle-like rectangles
-                if 1.2 <= (vw / max(1, vh)) <= 4.0 and vw > 60:
+                aspect = vw / max(1, vh)
+                # Broadened aspect ratio for front, side, and rear car angles
+                if 0.85 <= aspect <= 4.5 and vw > 50 and vh > 35:
                     crop = frame[vy:vy+vh, vx:vx+vw]
                     sharpness = calculate_sharpness(crop)
                     label = f"VEHICLE {target_idx}"
@@ -476,7 +528,7 @@ def analyze_surveillance_frame(frame, timestamp, idx, detect_faces=True, detect_
                         'sharpness': sharpness,
                         'bbox': (vx, vy, vw, vh)
                     })
-                    # Extract License Plate from this vehicle
+                    # Extract License Plate from this vehicle crop
                     plate_crop, pbox = find_plate_in_crop(crop)
                     if plate_crop is not None and plate_crop.size > 0:
                         crops.append({
@@ -485,11 +537,11 @@ def analyze_surveillance_frame(frame, timestamp, idx, detect_faces=True, detect_
                             'timestamp': timestamp,
                             'crop_rgb': cv2.cvtColor(plate_crop, cv2.COLOR_BGR2RGB),
                             'sharpness': calculate_sharpness(plate_crop),
-                            'bbox': pbox,
+                            'bbox': (vx + pbox[0], vy + pbox[1], pbox[2], pbox[3]),
                             'parent_id': target_idx
                         })
                     target_idx += 1
-                    if target_idx > 8:
+                    if target_idx > 12:
                         break
 
     return annotated, records, crops
@@ -817,6 +869,14 @@ with st.sidebar:
     
     st.divider()
     
+    # Vision Detection Filters
+    st.markdown("#### 🛡️ Vision Detection Filters")
+    flt_face = st.checkbox("Frontal & Profile Faces", value=True)
+    flt_body = st.checkbox("Pedestrians / Upper Body", value=True)
+    flt_vehicle = st.checkbox("Vehicles & Road Contours", value=True)
+    
+    st.divider()
+    
     # Tactical Presets
     st.markdown("#### ⚡ Quick Tactical Scenarios")
     
@@ -850,16 +910,10 @@ with st.sidebar:
             st.session_state['filename'] = f"SIM_{scenario.split(':')[0].replace(' ', '_')}.mp4"
             st.session_state['file_hash'] = hashlib.sha256(sim_bytes).hexdigest()
             # Run scan
-            result = scan_video_stream(sim_bytes, sample_every=0.5, max_frames=50)
+            result = scan_video_stream(sim_bytes, sample_every=0.5, max_frames=50, detect_faces=flt_face, detect_bodies=flt_body, detect_vehicles=flt_vehicle)
             st.session_state['result'] = result
             st.toast("Tactical scenario loaded and analyzed!", icon="🎯")
 
-    st.divider()
-    st.markdown("#### 🛡️ Vision Detection Filters")
-    flt_face = st.checkbox("Frontal & Profile Faces", value=True)
-    flt_body = st.checkbox("Pedestrians / Upper Body", value=True)
-    flt_vehicle = st.checkbox("Vehicles & Road Contours", value=True)
-    
     st.markdown("---")
     st.caption("Forensic Intelligence System  •  ImageKit Powered  •  SHA-256 Verified")
 
@@ -1076,6 +1130,35 @@ with tab_criminal:
                         st.image(p_rgb, caption="Extracted Real Plate", use_container_width=True)
                 else:
                     st.caption("Plate region pending extraction")
+        
+        with st.expander("🎯 Manual ALPR Pinpoint & Bumper Plate Extractor (Any Video)"):
+            st.caption("If your footage has unusual lighting, angles, or distance, use this interactive forensic tool to pinpoint and crop the plate from any frame:")
+            if res and res.get('raw_frames'):
+                p_frames = res['raw_frames']
+                p_f_idx = st.slider("Select Frame", 0, len(p_frames)-1, 0, key="manual_alpr_f")
+                _, p_raw_rgb = p_frames[p_f_idx]
+                p_h, p_w = p_raw_rgb.shape[:2]
+                
+                m_c1, m_c2 = st.columns(2)
+                with m_c1:
+                    m_x = st.slider("Crop X (Left)", 0, max(1, p_w - 30), min(int(p_w * 0.25), p_w - 30), key="m_alpr_x")
+                    m_y = st.slider("Crop Y (Top)", 0, max(1, p_h - 20), min(int(p_h * 0.60), p_h - 20), key="m_alpr_y")
+                with m_c2:
+                    m_w = st.slider("Crop Width", 20, p_w - m_x, min(220, p_w - m_x), key="m_alpr_w")
+                    m_h = st.slider("Crop Height", 10, p_h - m_y, min(70, p_h - m_y), key="m_alpr_h")
+                    
+                custom_crop = p_raw_rgb[m_y:m_y+m_h, m_x:m_x+m_w]
+                c_bgr = cv2.cvtColor(custom_crop, cv2.COLOR_RGB2BGR)
+                m_clahe, m_bin = enhance_license_plate(c_bgr)
+                
+                res_col1, res_col2 = st.columns(2)
+                with res_col1:
+                    st.image(custom_crop, caption=f"Manual Crop ({m_w}x{m_h} px)", use_container_width=True)
+                with res_col2:
+                    if m_bin is not None:
+                        st.image(m_bin, caption="Enhanced Plate Binary (CLAHE/Otsu)", use_container_width=True)
+            else:
+                st.info("Upload video footage or load the scenario in Tab 1 to enable manual ALPR pinpointing.")
         
         st.markdown("**Quick Query Test Plates:** `7X9` (Simulated CCTV Car) • `7X9-B42` • `APX-901` • `SLV-447` • `REZ-303`")
         plate_input = st.text_input("Enter License Plate to Query", value=st.session_state.get('selected_plate', ''), key="plate_search_box")
