@@ -747,8 +747,23 @@ with st.sidebar:
     
     # Tactical Presets
     st.markdown("#### ⚡ Quick Tactical Scenarios")
+    
+    master_video_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'demo_master_surveillance.mp4')
+    if os.path.exists(master_video_path):
+        if st.button("🎬 LOAD BUNDLED MASTER VIDEO (Car + Face + Plate)", use_container_width=True):
+            with open(master_video_path, 'rb') as f:
+                v_bytes = f.read()
+            st.session_state['video_data'] = v_bytes
+            st.session_state['filename'] = 'demo_master_surveillance.mp4'
+            st.session_state['file_hash'] = hashlib.sha256(v_bytes).hexdigest()
+            with st.spinner("Analyzing Bundled Master Surveillance Video..."):
+                result = scan_video_stream(v_bytes, sample_every=0.5, max_frames=50, detect_faces=flt_face, detect_bodies=flt_body, detect_vehicles=flt_vehicle)
+                st.session_state['result'] = result
+                st.toast("Master video loaded! Vehicle, Face, and Plate 7X9 locked.", icon="🎯")
+                st.rerun()
+
     scenario = st.selectbox(
-        "Load Surveillance Scenario",
+        "Or Procedural Scenario Feed",
         [
             "Scenario Alpha: Perimeter Vehicle Intercept",
             "Scenario Bravo: High-Security Terminal Face Track",
@@ -756,7 +771,7 @@ with st.sidebar:
         ]
     )
     
-    if st.button("🚀 Load Scenario Simulation", use_container_width=True):
+    if st.button("🚀 Load Procedural Simulation", use_container_width=True):
         with st.spinner("Generating procedural surveillance scenario feed..."):
             sim_bytes = generate_synthetic_cctv_feed(duration_sec=3.5, fps=12, scenario=scenario)
             st.session_state['video_data'] = sim_bytes
