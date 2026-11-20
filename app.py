@@ -7,6 +7,11 @@ import streamlit as st
 from PIL import Image
 import requests
 
+# Guaranteed global defaults for vision detection filters across all scopes
+flt_face = True
+flt_body = True
+flt_vehicle = True
+
 # -----------------------------------------------------------------------------
 # PAGE CONFIGURATION & TACTICAL HUD THEME
 # -----------------------------------------------------------------------------
@@ -871,9 +876,12 @@ with st.sidebar:
     
     # Vision Detection Filters
     st.markdown("#### 🛡️ Vision Detection Filters")
-    flt_face = st.checkbox("Frontal & Profile Faces", value=True)
-    flt_body = st.checkbox("Pedestrians / Upper Body", value=True)
-    flt_vehicle = st.checkbox("Vehicles & Road Contours", value=True)
+    flt_face = st.checkbox("Frontal & Profile Faces", value=st.session_state.get('flt_face', True), key="chk_flt_face")
+    flt_body = st.checkbox("Pedestrians / Upper Body", value=st.session_state.get('flt_body', True), key="chk_flt_body")
+    flt_vehicle = st.checkbox("Vehicles & Road Contours", value=st.session_state.get('flt_vehicle', True), key="chk_flt_vehicle")
+    st.session_state['flt_face'] = flt_face
+    st.session_state['flt_body'] = flt_body
+    st.session_state['flt_vehicle'] = flt_vehicle
     
     st.divider()
     
